@@ -1,0 +1,181 @@
+---
+title: "Investing in New Sector:Biogas"
+author: "Tani"
+date: "2024-07-22"
+output: html_document
+bibliography: citation.bib
+csl: acta-naturae.csl
+---
+Using decisionSupport to generate probabilistic simulations of  investing in New Sector: Biogas in a farm-size household @adeoti_engineering_2000.
+We use the decisonSupport() function to perform probabilistic Monte Carlo simulations. The function performs calculations using distributions and ranges which is a major advantage over traditional spreadsheet calculations. In a Monte Carlo simulation, a particular calculation is repeated many times. Each time, a random draw from defined distribution of each variable are used as inputs for calculating the function. The output then consists of a set of values instead of single estimates. @luedeling_decisionsupport_2022-1.
+
+The function requires two arguments:
+
+1. A data table (.csv format) specifying the names and distributions for all uncertain variables and,
+
+2. An R function that predicts decision outcomes based on the variables named in the data table.
+
+The chance_event() function calculates the time series occurrence of particular events. This function requires two main arguments:
+
+1. The probability that a  household will invest in a given year and
+
+2. The time line for the simulation.
+
+The value varier function vv() produces realistic time series of data that includes year-to-year variation around a specified mean. This is determined by a desired coefficient of variation. Both mean and coefficient of variation are provided to the model via the input table.
+
+The discount() function calculated NPV in the last step of the decision modeling procedure. The function implements discounting of future costs or benefits by a decision maker-specific discount rate, which is also specified in the input tables.
+
+The cost-benefit model AF_benefit calculates the NPV:
+
+```{r }
+library(decisionSupport)
+input_estimates <- read.csv("input_estimates.csv")
+
+make_variables <- function(est,n=1)
+{ x<-random(rho=est, n=n)
+for(i in colnames(x)) assign(i,
+                             as.numeric(x[1,i]),envir=.GlobalEnv)
+}
+
+make_variables(as.estimate(input_estimates))
+```
+
+```{r}
+
+# Define the decision function
+decision_function <- function(x, varnames){
+  #the baseline is just a normal income without bio gas
+  annual_household_income <- income_per_month * 12 
+  
+  # calculate the cost 
+  
+  # establishment cost, to be paid only for th first year
+  biogas_establishment_cost <- installation_cost
+  
+  # annual cost
+  # with manure as raw material
+  biogas_manure_cost_precalc <- biogas_cost_per_year + 	
+    labour_cost + equipement_cost + manure_raw_material_cost
+  biogas_manure_cost <- vv(biogas_manure_cost_precalc,var_CV, n_years)
+  # add the annual cost with establishment cost for the first year
+  biogas_manure_cost[1] <- biogas_manure_cost[1] + biogas_establishment_cost
+  
+  # with raw material from industrial based (?)
+  biogas_industry_cost_precalc <- biogas_cost_per_year + 	
+    labour_cost + equipement_cost + industry_raw_material_cost
+  biogas_industry_cost <- vv(biogas_industry_cost_precalc,var_CV, n_years)
+  # add the annual cost with establishment cost for the first year
+  biogas_industry_cost[1] <- biogas_industry_cost[1] + biogas_establishment_cost
+  
+  
+  # Profit from biogas production system
+  # how much bigas we can produced per year
+  #we can assume that the machine will be running 15 per month
+  biogas_product_per_year_precalc <- biogas_product * 15 * 12
+  biogas_product_per_year <- vv(biogas_product_per_year_precalc,var_CV, n_years)
+  
+  # revenue of biogas
+  # to get the net revenue subtract the annual operation cost from the price
+   annual_revenue_biogas_from_manure <- biogas_product_per_year - biogas_price
+  
+manure_biogas_result <- annual_revenue_biogas_from_manure - biogas_manure_cost
+household_income_with_biogas_manure <- manure_biogas_result + annual_household_income
+
+industry_biogas_result <- annual_revenue_biogas_from_manure - biogas_industry_cost
+household_income_with_biogas_industry <- industry_biogas_result + annual_household_income
+
+# calculate NPV
+
+NPV_household_income_with_biogas_manure <-
+  discount(household_income_with_biogas_manure, discount_rate, calculate_NPV = TRUE)
+
+NPV_household_income_with_biogas_industry <-
+  discount(household_income_with_biogas_industry, discount_rate, calculate_NPV = TRUE)
+
+NPV_household <- discount(annual_household_income, discount_rate, calculate_NPV = TRUE)
+
+ 
+return(list(manure_based_biogas_NPV = NPV_household_income_with_biogas_manure,
+            industry_based_biogas_NPV = NPV_household_income_with_biogas_industry,
+            NO_biogas_NPV = NPV_household,
+            NPV_decision_do = NPV_household_income_with_biogas_manure - NPV_household,
+            Cashflow_decision_do = manure_biogas_result))
+}
+
+```
+
+The probabilistic simulation was implemented using the decisionSupport function to return a Monte Carlo data table with 1, 000 values for each of the input and response variables in the return list. A VIP score generated for each input variable of the PLS regression indicate its influenctial importance contriduting to model outcome.
+```{r }
+mcSimulation_results <- decisionSupport::mcSimulation(
+  estimate = decisionSupport::estimate_read_csv("input_estimates.csv"),
+  model_function = decision_function,
+  numberOfModelRuns = 1e3, #run 1,000 times
+  functionSyntax = "plainNames"
+)
+
+# Plot Net Present Value (NPV) distributions 
+decisionSupport::plot_distributions(mcSimulation_object = mcSimulation_results, 
+                                    vars = c("NPV_decision_do", 
+                                             "NO_biogas_NPV","industry_based_biogas_NPV", "manure_based_biogas_NPV"),
+                                    method = 'smooth_simple_overlay', 
+                                    base_size = 7)
+
+decisionSupport::plot_distributions(mcSimulation_object = mcSimulation_results, 
+                                    vars = c("NPV_decision_do",
+                                             "NO_biogas_NPV","industry_based_biogas_NPV", "manure_based_biogas_NPV"),
+                                    method = 'boxplot')
+
+
+
+
+```
+
+
+```{r}
+## Cashflow analysis
+
+plot_cashflow(mcSimulation_object = mcSimulation_results, cashflow_var_name = "Cashflow_decision_do")
+
+#### Projection to Latent Structures (PLS) analysis
+
+pls_result <- plsr.mcSimulation(object = mcSimulation_results,
+                                resultName = names(mcSimulation_results$y)[3], ncomp = 1)
+
+plot_pls(pls_result, threshold = 0)
+
+
+
+```
+
+The outcome table is then used to calculate the Value of Information for uncertain variables using the multi_EVPI function in the decisionSupport package 
+
+The multi_EVPI() function calculates the expected value of perfect information (EVPI) for multiple variables in the model using the simulation outcome table from the decisionSupport()function.
+
+```{r}
+# Value of Information (VoI) analysis
+mcSimulation_table <- data.frame(mcSimulation_results$x, mcSimulation_results$y[1:4])
+#
+evpi <- multi_EVPI(mc = mcSimulation_table, first_out_var = "manure_based_biogas_NPV") # first value on return result
+plot_evpi(evpi, decision_vars = "NPV_decision_do")
+# too high uncertain for the equipement.. so in order to get a PI you should
+#spend not more than 50,000
+
+```
+
+
+```{r}
+compound_figure(mcSimulation_object = mcSimulation_results, input_table = input_estimates, 
+                plsrResults = pls_result, EVPIresults = evpi, 
+                decision_var_name = "NPV_decision_do", 
+                cashflow_var_name = "Cashflow_decision_do", base_size = 7)
+
+
+
+```
+
+
+
+## References
+
+
+

@@ -1,0 +1,14 @@
+variable,lower,median,upper,distribution,label,Description
+n_years,7,,7,const,Project year,Project time zone(years)
+discount_rate,1,,5,posnorm,Discount rate(%),
+var_CV,5,,5,const,Coeffficient of variation,"Coefficient of variation, ratio of the standard deviation to the mean (a measure of relative variability)."
+installation_cost,500,,1000,posnorm,Installation Cost(USD),Installation cost for biogas systems in USD.
+biogas_cost_per_year,1400,,1500,posnorm,Biogas Cost(USD),Annual cost of maintaining and operating biogas system in USD
+labour_cost,100,,300,posnorm,Labour cost(USD),Labour cost in construction of biogas systems
+equipement_cost,20000,,500000,posnorm,equipement cost(USD),Equipement cost from 1m3 to 6m3
+manure_raw_material_cost,0.22,,0.39,posnorm,Product Biogas (L/m3),profit per cubic meter of methane for manure based biogas production
+industry_raw_material_cost,0.11,,0.5,posnorm,Product Biogas (L/m3),profit per cubic  meter of methane for industrial waste based biogas production
+income_per_month,368,,1900,posnorm,household income(USD),Total household income per month in USD
+compost_price,50,,100,posnorm,Biogas Production(USD/kg),Annual compost production from biogas in kilograms.
+biogas_price,0.065,,0.08,posnorm,Biogas Price (USD/m3),Biogas price
+biogas_product,1000,,2000,posnorm,biogas product(USD/m3),
